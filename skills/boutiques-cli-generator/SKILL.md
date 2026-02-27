@@ -1,6 +1,6 @@
 ---
 name: boutiques-cli-generator
-description: Generate Boutiques descriptor JSON from any command-line tool documentation. Use this skill whenever you need to create a Boutiques descriptor from command-line help text, documentation pages, or CLI tool specifications. This applies to neuroimaging tools, bioinformatics pipelines, data processing utilities, or any command-line application.
+description: Generate Boutiques descriptor JSON from any command-line tool documentation. Use this skill whenever you need to create a Boutiques descriptor from command-line help text, documentation pages, or CLI tool specifications. This applies to neuroimaging tools, bioinformatics pipelines, data processing utilities, or any command-line application. Examples of command line usage are useful as well, especially if there are are unusual syntaxes.
 license: MIT
 compatibility: opencode
 metadata:
@@ -27,7 +27,8 @@ The skill works with:
 2. **Help text output** - e.g., from running `tool --help`
 3. **Usage strings** - e.g., `usage: fmriprep [options] bids_dir output_dir {participant}`
 4. **Parameter tables** - documentation with argument names, types, descriptions, and default values
-
+5. **Command line usage examples** - examples of command lines 
+ 
 ## How to generate a Boutiques descriptor
 
 ### Step 1: Extract tool information
@@ -47,6 +48,7 @@ For each parameter, determine:
 - **type**: One of "String", "Number", "Flag", "File"
 - **optional**: true/false (usually inferred from syntax - square brackets mean optional)
 - **command-line-flag**: The actual flag (e.g., "--output-spaces", "-t")
+- **command-line-flag-separator**: Separator used between flags and their arguments (e.g., "="). Default is a single space.
 - **value-key**: Uppercase in brackets, e.g., "[OUTPUT_DIR]"
 - **value-choices**: If enum/choices are specified
 - **default-value**: If a default is mentioned
@@ -77,12 +79,7 @@ Use this JSON structure:
             "command-line-flag": "<flag>"
         }
     ],
-    "tags": {},
-    "suggested-resources": {
-        "cpu-cores": 1,
-        "ram": 1,
-        "walltime-estimate": 60
-    }
+    "tags": {}
 }
 ```
 
@@ -103,7 +100,7 @@ Use these rules to determine the correct type:
 
 - **Positional arguments** (no flag, appears in usage without brackets): Required
 - **Optional arguments** (in square brackets in usage, or explicitly marked optional): Optional
-- **Flags with defaults**: Include `default-value` field
+- **Flags with defaults**: Make sure it appears in the description, not as a default-value field.
 
 ## Value-choices handling
 
@@ -117,7 +114,6 @@ When a parameter has limited valid values:
     "type": "String",
     "value-key": "[LEVEL]",
     "command-line-flag": "--level",
-    "default-value": "full",
     "value-choices": ["minimal", "resampling", "full"]
 }
 ```
@@ -128,6 +124,7 @@ When a parameter has limited valid values:
 - Short flags: `-t` → command-line-flag: "-t"
 - Combined short: `-w` → command-line-flag: "-w"
 - Flag that doesn't need value (boolean): just the flag name
+- If possible use the long flags
 
 ## Example: Converting fMRIPrep documentation
 
@@ -185,22 +182,6 @@ fmriprep bids_dir output_dir {participant} [-h] [--skip_bids_validation]
 }
 ```
 
-## Output handling
-
-If the documentation mentions output files, add an `output-files` section:
-
-```json
-"output-files": [
-    {
-        "id": "output_dir",
-        "name": "output_directory",
-        "description": "Directory for preprocessed outputs",
-        "value-key": "[OUTPUT_DIR]",
-        "path-template": "[OUTPUT_DIR]"
-    }
-]
-```
-
 ## Common patterns
 
 - **Memory options**: `--mem`, `--mem-mb` → type: Number or String (with unit like "8GB")
@@ -212,8 +193,8 @@ If the documentation mentions output files, add an `output-files` section:
 ## Important notes
 
 - Always validate the output JSON is valid
-- Include the container-image section with a reasonable docker/singularity image if you can infer it
 - Use descriptive IDs (snake_case) for all inputs
-- The value-key should match what's in the command-line template
+- The value-key should match what's in the command-line template. If the usage string contains something like [options...] , expand it into individual flags.
 - Set `schema-version` to "0.5" (current Boutiques schema version)
-- Include suggested-resources with reasonable defaults
+- if bosh is installed, be sure to run bosh validate 'path/to/the/descriptor/file'
+- "command-line-flag": null is not a correct value. It should be a string, or the line should be removed
