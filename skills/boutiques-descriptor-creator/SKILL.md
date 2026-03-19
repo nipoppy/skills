@@ -1,16 +1,12 @@
 ---
-name: boutiques-cli-generator
+name: boutiques-descriptor-creator
 description: Generate Boutiques descriptor JSON from any command-line tool documentation. Use this skill whenever you need to create a Boutiques descriptor from command-line help text, documentation pages, or CLI tool specifications. This applies to neuroimaging tools, bioinformatics pipelines, data processing utilities, or any command-line application. Examples of command line usage are useful as well, especially if there are are unusual syntaxes.
 license: MIT
-compatibility: opencode
-metadata:
-  audience: developers
-  workflow: cli-tools
 ---
 
 ## What I do
 
-I transform command-line documentation or help text into a Boutiques descriptor JSON. Boutiques is a schema (http://github.com/boutiques/boutiques-schema) for describing command-line tools in a portable, machine-readable format.
+I transform command-line documentation or help text into a Boutiques descriptor JSON. Boutiques is a schema (https://github.com/boutiques/boutiques) for describing command-line tools in a portable, machine-readable format.
 
 ## When to use me
 
