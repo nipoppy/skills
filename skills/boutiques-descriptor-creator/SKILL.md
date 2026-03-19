@@ -33,7 +33,9 @@ This workflow accepts:
 5. Parameter tables.
 6. Command examples.
 
-## Step 1: Collect help text from the tool
+## Detailed steps
+
+### Step 1: Collect help text from the tool
 
 Default path:
 1. Start with the tool name provided by the user.
@@ -47,7 +49,7 @@ Optional helper commands:
 
 If help output is paged or verbose, redirect it to a file and parse from the saved text.
 
-## Step 2: Containerized tools (Docker, Singularity, Apptainer)
+### Step 2: Containerized tools (Docker, Singularity, Apptainer)
 
 When the CLI is available only through a container runtime, collect help text inside the container.
 
@@ -68,7 +70,7 @@ Notes:
 - If required by the tool, mount input/output paths when running container commands.
 - Record the container image in the descriptor `container-image` field.
 
-## Step 3: Extract tool information
+### Step 3: Extract tool information
 
 From help text or documentation, identify:
 - **name**: Tool name (for example, `fmriprep`)
@@ -76,7 +78,7 @@ From help text or documentation, identify:
 - **tool-version**: Version string when available; otherwise ask the user
 - **command-line**: Command template with value-keys in brackets
 
-## Step 4: Parse parameters
+### Step 4: Parse parameters
 
 For each parameter, determine:
 - **id**: Unique identifier (snake_case, alphanumeric + underscores)
@@ -90,7 +92,7 @@ For each parameter, determine:
 - **value-choices**: Allowed values for enum-like arguments
 - **default-value**: Include when explicitly documented
 
-## Step 5: Build the descriptor
+### Step 5: Build the descriptor
 
 Use this JSON structure:
 
@@ -120,7 +122,17 @@ Use this JSON structure:
 }
 ```
 
-## Parameter type inference rules
+The full schema can be found at `descriptor.schema.json`, make sure to consult it as well.
+
+#### Important notes
+- If the tool is not containerized, omit the `container-image` field.
+- `command-line-flag` is optional, omit it if the argument is positional or if the separator is a space.
+- Do not use `default-value`. Instead, include the default behavior in the description.
+- Use descriptive IDs (snake_case) for all inputs
+- The value-key should match what's in the command-line template. If the usage string contains something like [options...] or [OPTIONS...], expand it into individual flags.
+- Set `schema-version` to "0.5" (current Boutiques schema version)
+
+#### Parameter type inference rules
 
 Use these rules to determine the correct type:
 
@@ -133,28 +145,12 @@ Use these rules to determine the correct type:
 | List of values (`--output-spaces T1w MNI`) | String with `list: true` |
 | Boolean flags | Flag |
 
-## Optional vs Required parameters
+#### Optional vs Required parameters
 
 - **Positional arguments** (no flag, appears in usage without brackets): Required
 - **Optional arguments** (in square brackets in usage, or explicitly marked optional): Optional
-- **Flags with defaults**: Make sure it appears in the description, not as a default-value field.
 
-## Step 6: Validate output
-
-Validate in this order:
-1. Verify that the descriptor file contains valid JSON.
-2. Run `bosh validate <path/to/descriptor.json>`.
-
-JSON validation examples:
-- `jq empty <path/to/descriptor.json>`
-- `python -m json.tool <path/to/descriptor.json> >/dev/null`
-
-Boutiques validation:
-- `bosh validate <path/to/descriptor.json>`
-
-Successful validation should report that the descriptor is valid.
-
-## Value-choices handling
+#### Value-choices handling
 
 When a parameter has limited valid values:
 ```json
@@ -170,15 +166,14 @@ When a parameter has limited valid values:
 }
 ```
 
-## Command-line flag conventions
+#### Command-line flag conventions
 
 - Long flags: `--output-spaces` → command-line-flag: "--output-spaces"
+    - Preferred over short flags if both are available
 - Short flags: `-t` → command-line-flag: "-t"
-- Combined short: `-w` → command-line-flag: "-w"
 - Flag that doesn't need value (boolean): just the flag name
-- If possible use the long flags
 
-## Example: Converting fMRIPrep documentation
+#### Example: Converting fMRIPrep documentation
 
 **Input (usage line from docs):**
 ```
@@ -234,19 +229,18 @@ fmriprep bids_dir output_dir {participant} [-h] [--skip_bids_validation]
 }
 ```
 
-## Common patterns
+### Step 6: Validate output
 
-- **Memory options**: `--mem`, `--mem-mb` → type: Number or String (with unit like "8GB")
-- **Thread options**: `--nprocs`, `--omp-nthreads` → type: Number
-- **Version flags**: `--version` → type: Flag
-- **Help flags**: `-h`, `--help` → type: Flag
-- **Debug flags**: `-v`, `-vv`, `--debug` → type: String with value-choices
+Validate in this order:
+1. Verify that the descriptor file contains valid JSON.
+2. Run `bosh validate <path/to/descriptor.json>`.
 
-## Important notes
+JSON validation examples:
+- `python -m json.tool <path/to/descriptor.json> >/dev/null`
 
-- Always validate that output is valid JSON
-- Use descriptive IDs (snake_case) for all inputs
-- The value-key should match what's in the command-line template. If the usage string contains something like [options...] , expand it into individual flags.
-- Set `schema-version` to "0.5" (current Boutiques schema version)
-- Run `bosh validate <path/to/descriptor.json>` after JSON validation
-- "command-line-flag": null is not a correct value. It should be a string, or the line should be removed
+Boutiques validation:
+- `bosh validate <path/to/descriptor.json>`
+
+Successful validation should report that the descriptor is valid.
+
+If `python` or `bosh` are not available, stop immediately and inform the user that they need to install these tools to validate the descriptor.
