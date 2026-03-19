@@ -1,55 +1,96 @@
 ---
 name: boutiques-descriptor-creator
-description: Generate Boutiques descriptor JSON from any command-line tool documentation. Use this skill whenever you need to create a Boutiques descriptor from command-line help text, documentation pages, or CLI tool specifications. This applies to neuroimaging tools, bioinformatics pipelines, data processing utilities, or any command-line application. Examples of command line usage are useful as well, especially if there are are unusual syntaxes.
+description: Generate Boutiques descriptor JSON from command-line tools. Use this skill whenever a user asks for a Boutiques descriptor and provides a CLI tool name, help output, documentation page, or usage examples. The workflow supports native and containerized tools, extracts arguments from -h/--help, and validates the final descriptor.
 license: MIT
 ---
 
-## What I do
+## Overview
 
-I transform command-line documentation or help text into a Boutiques descriptor JSON. Boutiques is a schema (https://github.com/boutiques/boutiques) for describing command-line tools in a portable, machine-readable format.
+Use this workflow to generate a Boutiques descriptor from a CLI tool:
+1. Collect tool help text by running `<tool-name> -h` or `<tool-name> --help`.
+2. Extract core tool metadata and command template.
+3. Parse arguments into Boutiques `inputs` fields.
+4. Build the descriptor JSON.
+5. Validate the descriptor as JSON, then run `bosh validate`.
 
-## When to use me
+Boutiques is a schema for describing command-line tools in a portable, machine-readable format: https://github.com/boutiques/boutiques
+
+## When to use this skill
 
 Use this skill when:
-- The user provides command-line documentation (e.g., from a readthedocs page)
-- The user provides the output of `--help` or `-h` for a CLI tool
-- The user wants to create a Boutiques descriptor for any command-line tool
-- You need to convert neuroimaging tools (fMRIPrep, FreeSurfer, ANTs, etc.), bioinformatics pipelines, or any CLI tool to Boutiques format
+- A user asks for a Boutiques descriptor for any CLI tool.
+- A user provides only a tool name and expects help text discovery.
+- A user provides existing documentation, usage strings, or examples.
+- The target tool is native or containerized.
 
-## Input formats I handle
+## Accepted input sources
 
-The skill works with:
-1. **Full documentation pages** - e.g., https://fmriprep.org/en/24.1.1/usage.html
-2. **Help text output** - e.g., from running `tool --help`
-3. **Usage strings** - e.g., `usage: fmriprep [options] bids_dir output_dir {participant}`
-4. **Parameter tables** - documentation with argument names, types, descriptions, and default values
-5. **Command line usage examples** - examples of command lines 
- 
-## How to generate a Boutiques descriptor
+This workflow accepts:
+1. A CLI tool name (preferred starting point).
+2. Help text output from `-h` or `--help`.
+3. Documentation pages.
+4. Usage strings.
+5. Parameter tables.
+6. Command examples.
 
-### Step 1: Extract tool information
+## Step 1: Collect help text from the tool
 
-From the documentation, identify:
-- **name**: Tool name (e.g., "fmriprep")
-- **description**: Brief description of what the tool does
-- **tool-version**: Version string (if not explicitly stated, use a reasonable default or "N/A")
-- **command-line**: The full command template with value-keys in brackets
+Default path:
+1. Start with the tool name provided by the user.
+2. Run `<tool-name> -h`.
+3. If output is incomplete or unavailable, run `<tool-name> --help`.
+4. Capture output for parsing.
 
-### Step 2: Parse parameters
+Optional helper commands:
+- `command -v <tool-name>` to confirm the binary is on PATH.
+- `<tool-name> --version` to collect `tool-version` when available.
+
+If help output is paged or verbose, redirect it to a file and parse from the saved text.
+
+## Step 2: Containerized tools (Docker, Singularity, Apptainer)
+
+When the CLI is available only through a container runtime, collect help text inside the container.
+
+Docker examples:
+- `docker run --rm <image>:<tag> <tool-name> -h`
+- `docker run --rm <image>:<tag> <tool-name> --help`
+
+Singularity examples:
+- `singularity exec <image>.sif <tool-name> -h`
+- `singularity exec <image>.sif <tool-name> --help`
+
+Apptainer examples:
+- `apptainer exec <image>.sif <tool-name> -h`
+- `apptainer exec <image>.sif <tool-name> --help`
+
+Notes:
+- If the image entrypoint already invokes the tool, omit `<tool-name>` and pass only `-h` or `--help`.
+- If required by the tool, mount input/output paths when running container commands.
+- Record the container image in the descriptor `container-image` field.
+
+## Step 3: Extract tool information
+
+From help text or documentation, identify:
+- **name**: Tool name (for example, `fmriprep`)
+- **description**: Brief summary of tool behavior
+- **tool-version**: Version string when available; otherwise ask the user
+- **command-line**: Command template with value-keys in brackets
+
+## Step 4: Parse parameters
 
 For each parameter, determine:
 - **id**: Unique identifier (snake_case, alphanumeric + underscores)
 - **name**: Human-readable name
-- **description**: What the parameter does (from docs)
-- **type**: One of "String", "Number", "Flag", "File"
-- **optional**: true/false (usually inferred from syntax - square brackets mean optional)
-- **command-line-flag**: The actual flag (e.g., "--output-spaces", "-t")
-- **command-line-flag-separator**: Separator used between flags and their arguments (e.g., "="). Default is a single space.
-- **value-key**: Uppercase in brackets, e.g., "[OUTPUT_DIR]"
-- **value-choices**: If enum/choices are specified
-- **default-value**: If a default is mentioned
+- **description**: Parameter purpose
+- **type**: One of `String`, `Number`, `Flag`, `File`
+- **optional**: `true` or `false` (square brackets usually indicate optional)
+- **command-line-flag**: Actual flag such as `--output-spaces` or `-t`
+- **command-line-flag-separator**: Separator between flag and value (for example, `=`). Default is a single space.
+- **value-key**: Uppercase in brackets, for example `[OUTPUT_DIR]`
+- **value-choices**: Allowed values for enum-like arguments
+- **default-value**: Include when explicitly documented
 
-### Step 3: Build the descriptor
+## Step 5: Build the descriptor
 
 Use this JSON structure:
 
@@ -97,6 +138,21 @@ Use these rules to determine the correct type:
 - **Positional arguments** (no flag, appears in usage without brackets): Required
 - **Optional arguments** (in square brackets in usage, or explicitly marked optional): Optional
 - **Flags with defaults**: Make sure it appears in the description, not as a default-value field.
+
+## Step 6: Validate output
+
+Validate in this order:
+1. Verify that the descriptor file contains valid JSON.
+2. Run `bosh validate <path/to/descriptor.json>`.
+
+JSON validation examples:
+- `jq empty <path/to/descriptor.json>`
+- `python -m json.tool <path/to/descriptor.json> >/dev/null`
+
+Boutiques validation:
+- `bosh validate <path/to/descriptor.json>`
+
+Successful validation should report that the descriptor is valid.
 
 ## Value-choices handling
 
@@ -188,9 +244,9 @@ fmriprep bids_dir output_dir {participant} [-h] [--skip_bids_validation]
 
 ## Important notes
 
-- Always validate the output JSON is valid
+- Always validate that output is valid JSON
 - Use descriptive IDs (snake_case) for all inputs
 - The value-key should match what's in the command-line template. If the usage string contains something like [options...] , expand it into individual flags.
 - Set `schema-version` to "0.5" (current Boutiques schema version)
-- if bosh is installed, be sure to run bosh validate 'path/to/the/descriptor/file'
+- Run `bosh validate <path/to/descriptor.json>` after JSON validation
 - "command-line-flag": null is not a correct value. It should be a string, or the line should be removed
