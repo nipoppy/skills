@@ -41,7 +41,8 @@ Default path:
 1. Start with the tool name provided by the user.
 2. Run `<tool-name> -h`.
 3. If output is incomplete or unavailable, run `<tool-name> --help`.
-4. Capture output for parsing.
+4. Also try to read the tool's man page (if available) with `man -P cat <tool-name>` for non-interactive capture.
+5. Capture output for parsing.
 
 Optional helper commands:
 - `command -v <tool-name>` to confirm the binary is on PATH.
@@ -64,6 +65,14 @@ Singularity examples:
 Apptainer examples:
 - `apptainer exec <image>.sif <tool-name> -h`
 - `apptainer exec <image>.sif <tool-name> --help`
+
+If these naive commands fail, inspect the container entrypoint/runscript first:
+- Docker: inspect entrypoint and cmd with `docker image inspect <image>:<tag> --format '{{json .Config.Entrypoint}} {{json .Config.Cmd}}'`.
+- Docker: if entrypoint is a script path, inspect it with `docker run --rm --entrypoint cat <image>:<tag> <entrypoint-path>`.
+- Singularity/Apptainer: inspect the runscript with `singularity inspect --runscript <image>.sif` or `apptainer inspect --runscript <image>.sif`.
+- Singularity/Apptainer: if needed, read `/.singularity.d/runscript` inside the image via `singularity exec <image>.sif cat /.singularity.d/runscript` (or the equivalent `apptainer exec`).
+
+After identifying the real entry command, rerun help using the entrypoint's underlying executable.
 
 Notes:
 - If the image entrypoint already invokes the tool, omit `<tool-name>` and pass only `-h` or `--help`.
