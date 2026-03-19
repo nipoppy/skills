@@ -92,7 +92,7 @@ From help text or documentation, identify:
 For each parameter, determine:
 - **id**: Unique identifier (snake_case, alphanumeric + underscores)
 - **name**: Human-readable name
-- **description**: Parameter purpose
+- **description**: Parameter purpose. This should be exactly what the user would see in the help text or documentation, without modification. Do not add inferred information or rephrase the description.
 - **type**: One of `String`, `Number`, `Flag`, `File`
 - **optional**: `true` or `false` (square brackets usually indicate optional)
 - **command-line-flag**: Actual flag such as `--output-spaces` or `-t`
@@ -102,6 +102,8 @@ For each parameter, determine:
 - **default-value**: Include when explicitly documented
 
 ### Step 5: Build the descriptor
+
+Unless otherwise specified, name the descriptor file `<tool_name>-<tool_version>.json`.
 
 Use this JSON structure:
 
@@ -134,7 +136,8 @@ Use this JSON structure:
 The full schema can be found at `descriptor.schema.json`, make sure to consult it as well.
 
 #### Important notes
-- If the tool is not containerized, omit the `container-image` field.
+- If the tool IS NOT containerized, omit the `container-image` field and warn the user.
+    - If the tool IS containerized but is not a Docker container image, stop and ask the user to provide Docker image information (if available) for the descriptor.
 - `command-line-flag` is optional, omit it if the argument is positional or if the separator is a space.
 - Do not use `default-value`. Instead, include the default behavior in the description.
 - Use descriptive IDs (snake_case) for all inputs
@@ -241,11 +244,13 @@ fmriprep bids_dir output_dir {participant} [-h] [--skip_bids_validation]
 ### Step 6: Validate output
 
 Validate in this order:
-1. Verify that the descriptor file contains valid JSON.
-2. Run `bosh validate <path/to/descriptor.json>`.
+1. Make sure every argument/option in the command-line template is represented in the `inputs` section with a corresponding `value-key`.
+2. Verify that the descriptor file contains valid JSON.
+3. Run `bosh validate <path/to/descriptor.json>`.
 
-JSON validation examples:
+JSON validation:
 - `python -m json.tool <path/to/descriptor.json> >/dev/null`
+- DO NOT use `jq`
 
 Boutiques validation:
 - `bosh validate <path/to/descriptor.json>`
