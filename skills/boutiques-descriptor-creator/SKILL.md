@@ -1,58 +1,26 @@
 ---
 name: boutiques-descriptor-creator
-description: Generate Boutiques descriptor JSON from command-line tools. Use this skill whenever a user asks for a Boutiques descriptor and provides a CLI tool name, help output, documentation page, or usage examples. The workflow supports native and containerized tools, extracts arguments from -h/--help, and validates the final descriptor.
+description: Generate Boutiques descriptor JSON from a command-line tool. Use when a user asks for a Boutiques descriptor and provides a CLI tool name, a Docker/Singularity/Apptainer image, helptext output, or documentation page.
 license: MIT
 ---
 
-## Overview
+# Boutiques Descriptor Creator
 
-Use this workflow to generate a Boutiques descriptor from a CLI tool:
-1. Collect tool help text by running `<tool-name> -h` or `<tool-name> --help`.
-2. Extract core tool metadata and command template.
-3. Parse arguments into Boutiques `inputs` fields.
-4. Build the descriptor JSON.
-5. Validate the descriptor as JSON, then run `bosh validate`.
-
-Boutiques is a schema for describing command-line tools in a portable, machine-readable format: https://github.com/boutiques/boutiques
-
-## When to use this skill
-
-Use this skill when:
-- A user asks for a Boutiques descriptor for any CLI tool.
-- A user provides only a tool name and expects help text discovery.
-- A user provides existing documentation, usage strings, or examples.
-- The target tool is native or containerized.
-
-## Accepted input sources
-
-This workflow accepts:
-1. A CLI tool name (preferred starting point).
-2. Help text output from `-h` or `--help`.
-3. Documentation pages.
-4. Usage strings.
-5. Parameter tables.
-6. Command examples.
-
-## Detailed steps
+## Instructions
 
 ### Step 1: Collect help text from the tool
 
-Default path:
+#### Non-containerized tools
+
 1. Start with the tool name provided by the user.
 2. Run `<tool-name> -h`.
 3. If output is incomplete or unavailable, run `<tool-name> --help`.
 4. Also try to read the tool's man page (if available) with `man -P cat <tool-name>` for non-interactive capture.
-5. Capture output for parsing.
+5. Capture all output for parsing. Do not limit the amount of output captured. If help output is paged or verbose, redirect it to a file and parse from the saved text.
 
-Optional helper commands:
-- `command -v <tool-name>` to confirm the binary is on PATH.
-- `<tool-name> --version` to collect `tool-version` when available.
+#### Containerized tools
 
-If help output is paged or verbose, redirect it to a file and parse from the saved text.
-
-### Step 2: Containerized tools (Docker, Singularity, Apptainer)
-
-When the CLI is available only through a container runtime, collect help text inside the container.
+When the CLI is available only through a container runtime, collect helptext inside the container.
 
 Docker examples:
 - `docker run --rm <image>:<tag> <tool-name> -h`
@@ -66,46 +34,50 @@ Apptainer examples:
 - `apptainer exec <image>.sif <tool-name> -h`
 - `apptainer exec <image>.sif <tool-name> --help`
 
-If these naive commands fail, inspect the container entrypoint/runscript first:
+Add bind paths using `--volume` (for Docker) or `--bind` (for Singularity/Apptainer) if there are errors related to filesystem access.
+
+If these commands fail, inspect the container entrypoint/runscript first:
 - Docker: inspect entrypoint and cmd with `docker image inspect <image>:<tag> --format '{{json .Config.Entrypoint}} {{json .Config.Cmd}}'`.
 - Docker: if entrypoint is a script path, inspect it with `docker run --rm --entrypoint cat <image>:<tag> <entrypoint-path>`.
-- Singularity/Apptainer: inspect the runscript with `singularity inspect --runscript <image>.sif` or `apptainer inspect --runscript <image>.sif`.
-- Singularity/Apptainer: if needed, read `/.singularity.d/runscript` inside the image via `singularity exec <image>.sif cat /.singularity.d/runscript` (or the equivalent `apptainer exec`).
+- Singularity/Apptainer: inspect the runscript with `singularity inspect --runscript <image>.sif` (or the equivalent `apptainer inspect ...`).
+- Singularity/Apptainer: if needed, read `/.singularity.d/runscript` inside the image via `singularity exec <image>.sif cat /.singularity.d/runscript` (or the equivalent `apptainer exec ...`).
 
 After identifying the real entry command, rerun help using the entrypoint's underlying executable.
 
-Notes:
-- If the image entrypoint already invokes the tool, omit `<tool-name>` and pass only `-h` or `--help`.
-- If required by the tool, mount input/output paths when running container commands.
-- Record the container image in the descriptor `container-image` field.
+If the image entrypoint already invokes the tool, omit `<tool-name>` and pass only `-h` or `--help`.
 
 ### Step 3: Extract tool information
 
 From help text or documentation, identify:
 - **name**: Tool name (for example, `fmriprep`)
 - **description**: Brief summary of tool behavior
-- **tool-version**: Version string when available; otherwise ask the user
+- **tool-version**: Version string
 - **command-line**: Command template with value-keys in brackets
+
+#### Helper commands for extracting tool version
+
+Run `<tool-name> --version` to collect `tool-version` if not already known. If this doesn't work, check if the helptext mentions a subcommand for version information, e.g. `<tool-name> version`.
 
 ### Step 4: Parse parameters
 
 For each parameter, determine:
 - **id**: Unique identifier (snake_case, alphanumeric + underscores)
-- **name**: Human-readable name
 - **description**: Parameter purpose. This should be exactly what the user would see in the help text or documentation, without modification. Do not add inferred information or rephrase the description.
-- **type**: One of `String`, `Number`, `Flag`, `File`
+- **type**: One of `String`, `Number`, or `Flag`
 - **optional**: `true` or `false` (square brackets usually indicate optional)
-- **command-line-flag**: Actual flag such as `--output-spaces` or `-t`
-- **command-line-flag-separator**: Separator between flag and value (for example, `=`). Default is a single space.
+- **command-line-flag**: Actual flag such as `--output-spaces` or `-t`. Prefer long flags if both are available. Omit if the parameter is positional.
+- **command-line-flag-separator**: Separator between flag and value (for example, `=`). Omit if the separator is a single space or if the flag does not take a value.
 - **value-key**: Uppercase in brackets, for example `[OUTPUT_DIR]`
 - **value-choices**: Allowed values for enum-like arguments
-- **default-value**: Include when explicitly documented
+- **default-value**: Do not include this field. Instead, include the default behavior in the description.
 
 ### Step 5: Build the descriptor
 
 Unless otherwise specified, name the descriptor file `<tool_name>-<tool_version>.json`.
 
-Use this JSON structure:
+The full schema can be found at `references/descriptor.schema.json`. Consult it if more information is needed than what is provided here.
+
+In general, use this JSON structure:
 
 ```json
 {
@@ -115,34 +87,27 @@ Use this JSON structure:
     "schema-version": "0.5",
     "command-line": "<tool-name> [PARAM1] [PARAM2] ...",
     "container-image": {
-        "image": "<docker-image>:<version>",
+        "image": "<owner>/<docker-image>:<version>",
         "type": "docker"
     },
     "inputs": [
         {
             "id": "<param-id>",
-            "name": "<param-name>",
-            "description": "<description>",
-            "optional": <true|false>,
             "type": "<String|Number|Flag|File>",
             "value-key": "[<PARAM_NAME>]",
-            "command-line-flag": "<flag>"
+            "description": "<description>",
+            ...
         }
     ],
     "tags": {}
 }
 ```
 
-The full schema can be found at `descriptor.schema.json`, make sure to consult it as well.
-
 #### Important notes
+
 - If the tool IS NOT containerized, omit the `container-image` field and warn the user.
-    - If the tool IS containerized but is not a Docker container image, stop and ask the user to provide Docker image information (if available) for the descriptor.
-- `command-line-flag` is optional, omit it if the argument is positional or if the separator is a space.
-- Do not use `default-value`. Instead, include the default behavior in the description.
-- Use descriptive IDs (snake_case) for all inputs
-- The value-key should match what's in the command-line template. If the usage string contains something like [options...] or [OPTIONS...], expand it into individual flags.
-- Set `schema-version` to "0.5" (current Boutiques schema version)
+    - If the tool IS containerized but is not a Docker container image, add placeholders for `container-image` and inform the user that they should add Docker image information.
+- The value-key should match what's in the command-line template. If the usage string contains something like [options...] or [OPTIONS...], expand it into individual flags (one for each input).
 
 #### Parameter type inference rules
 
@@ -150,111 +115,296 @@ Use these rules to determine the correct type:
 
 | Syntax pattern | Type |
 |----------------|------|
-| No value (just a flag like `--verbose`) | Flag |
+| No value (just a boolean flag like `--verbose`) | Flag |
 | Numeric value (`--nprocs 4`) | Number |
-| Path/file input (`--input file.nii`) | File |
-| String/enum choices (`--level minimal`) | String |
-| List of values (`--output-spaces T1w MNI`) | String with `list: true` |
-| Boolean flags | Flag |
+| Path/file input (`--input file.nii`) | String |
+| Other values (`--level minimal`) | String |
 
-#### Optional vs Required parameters
+#### Optional parameters
 
-- **Positional arguments** (no flag, appears in usage without brackets): Required
-- **Optional arguments** (in square brackets in usage, or explicitly marked optional): Optional
+If an input is optional (in square brackets in usage, or explicitly marked optional), add `"optional": true`. Otherwise, omit the `optional` field.
+
+#### Flags/options
+
+If the input is a flag or option (for example, `--flag` or `--option OPTION`), add a `command-line-flag` field with the flag name. Use long-form names (prefixed with double dashes) if available, e.g. `"command-line-flag": "--flag"` instead of `"command-line-flag": "-f"`.
+
+If the flag takes a value, optionally add a `command-line-flag-separator` field if the separator is not a single space.
 
 #### Value-choices handling
 
-When a parameter has limited valid values:
-```json
-{
-    "id": "level",
-    "name": "level",
-    "description": "Processing level",
-    "optional": true,
-    "type": "String",
-    "value-key": "[LEVEL]",
-    "command-line-flag": "--level",
-    "value-choices": ["minimal", "resampling", "full"]
-}
+When an input has limited valid values, add a `"value-choices": [<choice1>, <choice2>, ...]` field:
+
+#### Multi-value option handling
+
+When a parameter accepts multiple values (for example, `--modalities T1w MNI`), use `list: true`:
+
+#### Examples
+
+##### Example 1
+
+###### Input (helptext)
+```
+fmriprep [-h] [--skip_bids_validation] [--participant-label PARTICIPANT_LABE [PARTICIPANT_LABEL ...]] 
+    [-t TASK_ID] [--bold2t1w-init {register,header}] [--version] [-v] bids_dir output_dir {participant}
+
+fMRIPrep: fMRI PREProcessing workflows v23.1.3
+
+positional arguments:
+  bids_dir              The root folder of a BIDS valid dataset (sub-XXXXX folders should be found at the top level in this
+                        folder).
+  output_dir            The output path for the outcomes of preprocessing and visual reports
+  {participant}         Processing stage to be run, only "participant" in the case of fMRIPrep (see BIDS-Apps
+                        specification).
+
+options:
+  -h, --help            show this help message and exit
+
+Options for filtering BIDS queries:
+  --skip_bids_validation, --skip-bids-validation
+                        Assume the input dataset is BIDS compliant and skip the validation (default: False)
+  --participant-label PARTICIPANT_LABEL [PARTICIPANT_LABEL ...], --participant_label PARTICIPANT_LABEL [PARTICIPANT_LABEL ...]
+                        A space delimited list of participant identifiers or a single identifier (the sub- prefix can be
+                        removed) (default: None)
+  -t TASK_ID, --task-id TASK_ID
+                        Select a specific task to be processed (default: None)
+
+Workflow configuration:
+  --bold2t1w-init {register,header}
+                        Either "register" (the default) to initialize volumes at center or "header" to use the header
+                        information when coregistering BOLD to T1w images. (default: register)
+
+Other options:
+  --version             show program's version number and exit
+  -v, --verbose         Increases log verbosity for each occurrence, debug level is -vvv (default: 0)
 ```
 
-#### Command-line flag conventions
+###### Output
 
-- Long flags: `--output-spaces` → command-line-flag: "--output-spaces"
-    - Preferred over short flags if both are available
-- Short flags: `-t` → command-line-flag: "-t"
-- Flag that doesn't need value (boolean): just the flag name
-
-#### Example: Converting fMRIPrep documentation
-
-**Input (usage line from docs):**
-```
-fmriprep bids_dir output_dir {participant} [-h] [--skip_bids_validation]
-           [--participant-label PARTICIPANT_LABEL [PARTICIPANT_LABEL ...]]
-           [-t TASK_ID] [--echo-idx ECHO_IDX] ...
-```
-
-**Partial Output:**
 ```json
 {
     "name": "fmriprep",
     "description": "fMRI PREProcessing workflows",
-    "tool-version": "24.1.1",
+    "tool-version": "23.1.3",
     "schema-version": "0.5",
-    "command-line": "fmriprep [BIDS_DIR] [OUTPUT_DIR] [ANALYSIS_LEVEL] [SKIP_BIDS_VALIDATION] ...",
+    "command-line": "get_descriptor.py [BIDS_DIR] [OUTPUT_DIR] [ANALYSIS_LEVEL] [SKIP_BIDS_VALIDATION] [PARTICIPANT_LABEL] [TASK_ID] [BOLD2T1W_INIT] [HELP] [VERSION] [VERBOSE_COUNT]",
     "inputs": [
         {
             "id": "bids_dir",
-            "name": "bids_dir",
-            "description": "The root folder of a BIDS valid dataset (sub-XXXXX folders should be found at the top level in this folder).",
-            "optional": false,
             "type": "String",
-            "value-key": "[BIDS_DIR]"
+            "value-key": "[BIDS_DIR]",
+            "description": "The root folder of a BIDS valid dataset (sub-XXXXX folders should be found at the top level in this folder)."
         },
         {
             "id": "output_dir",
-            "name": "output_dir",
-            "description": "The output path for the outcomes of preprocessing and visual reports",
-            "optional": false,
             "type": "String",
-            "value-key": "[OUTPUT_DIR]"
+            "value-key": "[OUTPUT_DIR]",
+            "description": "The output path for the outcomes of preprocessing and visual reports"
         },
         {
             "id": "analysis_level",
-            "name": "analysis_level",
-            "description": "Processing stage to be run, only 'participant' in the case of fMRIPrep.",
-            "optional": false,
             "type": "String",
             "value-key": "[ANALYSIS_LEVEL]",
-            "value-choices": ["participant"]
+            "description": "Processing stage to be run, only \"participant\" in the case of fMRIPrep (see BIDS-Apps specification).",
+            "value-choices": [
+                "participant"
+            ]
         },
         {
             "id": "skip_bids_validation",
-            "name": "skip_bids_validation",
-            "description": "Assume the input dataset is BIDS compliant and skip the validation",
-            "optional": true,
             "type": "Flag",
             "value-key": "[SKIP_BIDS_VALIDATION]",
-            "command-line-flag": "--skip-bids-validation"
+            "description": "Assume the input dataset is BIDS compliant and skip the validation",
+            "optional": true,
+            "command-line-flag": "--skip_bids_validation"
+        },
+        {
+            "id": "participant_label",
+            "type": "String",
+            "value-key": "[PARTICIPANT_LABEL]",
+            "description": "A space delimited list of participant identifiers or a single identifier (the sub- prefix can be removed)",
+            "optional": true,
+            "list": true,
+            "command-line-flag": "--participant-label"
+        },
+        {
+            "id": "task_id",
+            "type": "String",
+            "value-key": "[TASK_ID]",
+            "description": "Select a specific task to be processed",
+            "optional": true,
+            "command-line-flag": "--task-id"
+        },
+        {
+            "id": "bold2t1w_init",
+            "type": "String",
+            "value-key": "[BOLD2T1W_INIT]",
+            "description": "Either \"register\" (the default) to initialize volumes at center or \"header\" to use the header information when coregistering BOLD to T1w images.",
+            "optional": true,
+            "command-line-flag": "--bold2t1w-init",
+            "value-choices": [
+                "register",
+                "header"
+            ]
+        },
+        {
+            "id": "help",
+            "type": "Flag",
+            "value-key": "[HELP]",
+            "description": "show this help message and exit",
+            "optional": true,
+            "command-line-flag": "--help"
+        },
+        {
+            "id": "version",
+            "type": "Flag",
+            "value-key": "[VERSION]",
+            "description": "show program's version number and exit",
+            "optional": true,
+            "command-line-flag": "--version"
+        },
+        {
+            "id": "verbose_count",
+            "type": "Flag",
+            "value-key": "[VERBOSE_COUNT]",
+            "description": "Increases log verbosity for each occurrence, debug level is -vvv (default: 0)",
+            "optional": true,
+            "value-choices": [
+                "-v",
+                "-vv",
+                "-vvv"
+            ]
         }
     ]
 }
 ```
 
+##### Example 2
+
+###### Input (helptext)
+
+```
+Usage: clinica run t1-freesurfer [OPTIONS] BIDS_DIRECTORY CAPS_DIRECTORY
+
+  Cross-sectional pre-processing of T1w images with FreeSurfer.
+
+  https://aramislab.paris.inria.fr/clinica/docs/public/latest/Pipelines/T1_FreeSurfer/
+
+Options:
+  Pipeline-specific options:      Options specific to the pipeline being run
+    -raa, --recon_all_args TEXT   Additional flags for recon-all command line Please note that = is compulsory after --recon_all_args/-raa flag (this is not
+                                  the case for other flags).  [default: -qcache]
+  Common pipelines options:       Options common to all Clinica pipelines
+    -tsv, --subjects_sessions_tsv FILE
+                                  TSV file containing a list of subjects with their sessions.
+    -wd, --working_directory DIRECTORY
+                                  Temporary directory to store pipelines intermediate results.
+    -overwrite, --overwrite_outputs
+                                  Force overwrite of output files in CAPS folder.
+    -ap, --atlas_path PATH        Compute atlases at the end of the path
+  Options common to all clinica tools: 
+                                  Options common to all clinica tools
+    -np, --n_procs INTEGER        Number of cores used to run in parallel.  [default: (Number of available CPU minus one)]
+    -cn, --caps-name TEXT         The name of the CAPS dataset that will be created by the pipeline. This is not the name of the folder itself, but the name
+                                  in the metadata, which can be different if desired. If the CAPS folder already exists and already has a name, this will have
+                                  no effect and the existing name will be kept.
+  -h, --help                      Show this message and exit.
+```
+
+###### Output
+
+```json
+{
+    "name": "clinica-t1-freesurfer",
+    "description": "Cross-sectional pre-processing of T1w images with FreeSurfer.",
+    "tool-version": "0.10.1",
+    "schema-version": "0.5",
+    "command-line": "clinica run t1-freesurfer [RECON_ALL_ARGS] [SUBJECTS_SESSIONS_TSV] [WORKING_DIRECTORY] [OVERWRITE_OUTPUTS] [ATLAS_PATH] [N_PROCS] [CAPS_NAME] [HELP] [BIDS_DIRECTORY] [CAPS_DIRECTORY]",
+    "inputs": [
+        {
+            "id": "bids_directory",
+            "type": "String",
+            "value-key": "[BIDS_DIRECTORY]",
+            "description": "The root directory containing the BIDS data."
+        },
+        {
+            "id": "caps_directory",
+            "type": "String",
+            "value-key": "[CAPS_DIRECTORY]",
+            "description": "The root directory for the CAPS data."
+        },
+        {
+            "id": "recon_all_args",
+            "type": "String",
+            "value-key": "[RECON_ALL_ARGS]",
+            "description": "Additional flags for recon-all command line Please note that = is compulsory after --recon_all_args/-raa flag (this is not the case for other flags).",
+            "optional": true,
+            "command-line-flag": "--recon_all_args",
+            "command-line-flag-separator": "="
+        },
+        {
+            "id": "subjects_sessions_tsv",
+            "type": "String",
+            "value-key": "[SUBJECTS_SESSIONS_TSV]",
+            "description": "TSV file containing a list of subjects with their sessions.",
+            "optional": true,
+            "command-line-flag": "--subjects_sessions_tsv"
+        },
+        {
+            "id": "working_directory",
+            "type": "String",
+            "value-key": "[WORKING_DIRECTORY]",
+            "description": "Temporary directory to store pipelines intermediate results.",
+            "optional": true,
+            "command-line-flag": "--working_directory"
+        },
+        {
+            "id": "overwrite_outputs",
+            "type": "Flag",
+            "value-key": "[OVERWRITE_OUTPUTS]",
+            "description": "Force overwrite of output files in CAPS folder.",
+            "optional": true,
+            "command-line-flag": "--overwrite_outputs"
+        },
+        {
+            "id": "atlas_path",
+            "type": "String",
+            "value-key": "[ATLAS_PATH]",
+            "description": "Compute atlases at the end of the path",
+            "optional": true,
+            "command-line-flag": "--atlas_path"
+        },
+        {
+            "id": "n_procs",
+            "type": "Number",
+            "value-key": "[N_PROCS]",
+            "description": "(Number of available CPU minus one)",
+            "optional": true,
+            "command-line-flag": "--n_procs"
+        },
+        {
+            "id": "caps_name",
+            "type": "String",
+            "value-key": "[CAPS_NAME]",
+            "description": "(The name of the CAPS dataset that will be created by the pipeline. This is not the name of the folder itself, but the name in the metadata, which can be different if desired. If the CAPS folder already exists and already has a name, this will have no effect and the existing name will be kept",
+            "optional": true,
+            "command-line-flag": "--caps-name"
+        },
+        {
+            "id": "help",
+            "type": "Flag",
+            "value-key": "[HELP]",
+            "description": "Show this message and exit.",
+            "command-line-flag": "--help"
+        }
+    ]
+}
+```
+
+
 ### Step 6: Validate output
 
 Validate in this order:
 1. Make sure every argument/option in the command-line template is represented in the `inputs` section with a corresponding `value-key`.
-2. Verify that the descriptor file contains valid JSON.
-3. Run `bosh validate <path/to/descriptor.json>`.
+2. Run `./scripts/validate.sh <path/to/descriptor.json>`.
 
-JSON validation:
-- `python -m json.tool <path/to/descriptor.json> >/dev/null`
-- DO NOT use `jq`
-
-Boutiques validation:
-- `bosh validate <path/to/descriptor.json>`
-
-Successful validation should report that the descriptor is valid.
-
-If `python` or `bosh` are not available, stop immediately and inform the user that they need to install these tools to validate the descriptor.
+Successful validation should report that the descriptor is valid (`OK`).
