@@ -93,6 +93,7 @@ In general, use this JSON structure:
     "inputs": [
         {
             "id": "<param-id>",
+            "name": "<param-id>",
             "type": "<String|Number|Flag|File>",
             "value-key": "[<PARAM_NAME>]",
             "description": "<description>",
@@ -190,18 +191,21 @@ Other options:
     "inputs": [
         {
             "id": "bids_dir",
+            "name": "bids_dir",
             "type": "String",
             "value-key": "[BIDS_DIR]",
             "description": "The root folder of a BIDS valid dataset (sub-XXXXX folders should be found at the top level in this folder)."
         },
         {
             "id": "output_dir",
+            "name": "output_dir",
             "type": "String",
             "value-key": "[OUTPUT_DIR]",
             "description": "The output path for the outcomes of preprocessing and visual reports"
         },
         {
             "id": "analysis_level",
+            "name": "analysis_level",
             "type": "String",
             "value-key": "[ANALYSIS_LEVEL]",
             "description": "Processing stage to be run, only \"participant\" in the case of fMRIPrep (see BIDS-Apps specification).",
@@ -211,6 +215,7 @@ Other options:
         },
         {
             "id": "skip_bids_validation",
+            "name": "skip_bids_validation",
             "type": "Flag",
             "value-key": "[SKIP_BIDS_VALIDATION]",
             "description": "Assume the input dataset is BIDS compliant and skip the validation",
@@ -219,6 +224,7 @@ Other options:
         },
         {
             "id": "participant_label",
+            "name": "participant_label",
             "type": "String",
             "value-key": "[PARTICIPANT_LABEL]",
             "description": "A space delimited list of participant identifiers or a single identifier (the sub- prefix can be removed)",
@@ -228,6 +234,7 @@ Other options:
         },
         {
             "id": "task_id",
+            "name": "task_id",
             "type": "String",
             "value-key": "[TASK_ID]",
             "description": "Select a specific task to be processed",
@@ -236,6 +243,7 @@ Other options:
         },
         {
             "id": "bold2t1w_init",
+            "name": "bold2t1w_init",
             "type": "String",
             "value-key": "[BOLD2T1W_INIT]",
             "description": "Either \"register\" (the default) to initialize volumes at center or \"header\" to use the header information when coregistering BOLD to T1w images.",
@@ -248,6 +256,7 @@ Other options:
         },
         {
             "id": "help",
+            "name": "help",
             "type": "Flag",
             "value-key": "[HELP]",
             "description": "show this help message and exit",
@@ -256,6 +265,7 @@ Other options:
         },
         {
             "id": "version",
+            "name": "version",
             "type": "Flag",
             "value-key": "[VERSION]",
             "description": "show program's version number and exit",
@@ -264,6 +274,7 @@ Other options:
         },
         {
             "id": "verbose_count",
+            "name": "verbose_count",
             "type": "Flag",
             "value-key": "[VERBOSE_COUNT]",
             "description": "Increases log verbosity for each occurrence, debug level is -vvv (default: 0)",
@@ -322,18 +333,21 @@ Options:
     "inputs": [
         {
             "id": "bids_directory",
+            "name": "bids_directory",
             "type": "String",
             "value-key": "[BIDS_DIRECTORY]",
             "description": "The root directory containing the BIDS data."
         },
         {
             "id": "caps_directory",
+            "name": "caps_directory",
             "type": "String",
             "value-key": "[CAPS_DIRECTORY]",
             "description": "The root directory for the CAPS data."
         },
         {
             "id": "recon_all_args",
+            "name": "recon_all_args",
             "type": "String",
             "value-key": "[RECON_ALL_ARGS]",
             "description": "Additional flags for recon-all command line Please note that = is compulsory after --recon_all_args/-raa flag (this is not the case for other flags).",
@@ -343,6 +357,7 @@ Options:
         },
         {
             "id": "subjects_sessions_tsv",
+            "name": "subjects_sessions_tsv",
             "type": "String",
             "value-key": "[SUBJECTS_SESSIONS_TSV]",
             "description": "TSV file containing a list of subjects with their sessions.",
@@ -351,6 +366,7 @@ Options:
         },
         {
             "id": "working_directory",
+            "name": "working_directory",
             "type": "String",
             "value-key": "[WORKING_DIRECTORY]",
             "description": "Temporary directory to store pipelines intermediate results.",
@@ -359,6 +375,7 @@ Options:
         },
         {
             "id": "overwrite_outputs",
+            "name": "overwrite_outputs",
             "type": "Flag",
             "value-key": "[OVERWRITE_OUTPUTS]",
             "description": "Force overwrite of output files in CAPS folder.",
@@ -367,6 +384,7 @@ Options:
         },
         {
             "id": "atlas_path",
+            "name": "atlas_path",
             "type": "String",
             "value-key": "[ATLAS_PATH]",
             "description": "Compute atlases at the end of the path",
@@ -375,6 +393,7 @@ Options:
         },
         {
             "id": "n_procs",
+            "name": "n_procs",
             "type": "Number",
             "value-key": "[N_PROCS]",
             "description": "(Number of available CPU minus one)",
@@ -383,6 +402,7 @@ Options:
         },
         {
             "id": "caps_name",
+            "name": "caps_name",
             "type": "String",
             "value-key": "[CAPS_NAME]",
             "description": "(The name of the CAPS dataset that will be created by the pipeline. This is not the name of the folder itself, but the name in the metadata, which can be different if desired. If the CAPS folder already exists and already has a name, this will have no effect and the existing name will be kept",
@@ -391,6 +411,7 @@ Options:
         },
         {
             "id": "help",
+            "name": "help",
             "type": "Flag",
             "value-key": "[HELP]",
             "description": "Show this message and exit.",
@@ -402,6 +423,8 @@ Options:
 
 
 ### Step 6: Validate output
+
+DO NOT use `jq` to validate.
 
 Validate in this order:
 1. Make sure every argument/option in the command-line template is represented in the `inputs` section with a corresponding `value-key`.
