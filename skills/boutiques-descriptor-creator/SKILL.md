@@ -275,7 +275,7 @@ Other options:
         {
             "id": "verbose_count",
             "name": "verbose_count",
-            "type": "Flag",
+            "type": "String",
             "value-key": "[VERBOSE_COUNT]",
             "description": "Increases log verbosity for each occurrence, debug level is -vvv (default: 0)",
             "optional": true,
@@ -302,8 +302,7 @@ Usage: clinica run t1-freesurfer [OPTIONS] BIDS_DIRECTORY CAPS_DIRECTORY
 
 Options:
   Pipeline-specific options:      Options specific to the pipeline being run
-    -raa, --recon_all_args TEXT   Additional flags for recon-all command line Please note that = is compulsory after --recon_all_args/-raa flag (this is not
-                                  the case for other flags).  [default: -qcache]
+    -raa, --recon_all_args TEXT   Additional flags for recon-all command line Please note that = is compulsory after --recon_all_args/-raa flag (this is not the case for other flags).  [default: -qcache]
   Common pipelines options:       Options common to all Clinica pipelines
     -tsv, --subjects_sessions_tsv FILE
                                   TSV file containing a list of subjects with their sessions.
@@ -315,9 +314,7 @@ Options:
   Options common to all clinica tools: 
                                   Options common to all clinica tools
     -np, --n_procs INTEGER        Number of cores used to run in parallel.  [default: (Number of available CPU minus one)]
-    -cn, --caps-name TEXT         The name of the CAPS dataset that will be created by the pipeline. This is not the name of the folder itself, but the name
-                                  in the metadata, which can be different if desired. If the CAPS folder already exists and already has a name, this will have
-                                  no effect and the existing name will be kept.
+    -cn, --caps-name TEXT         The name of the CAPS dataset that will be created by the pipeline. This is not the name of the folder itself, but the name in the metadata, which can be different if desired. If the CAPS folder already exists and already has a name, this will have no effect and the existing name will be kept.
   -h, --help                      Show this message and exit.
 ```
 
