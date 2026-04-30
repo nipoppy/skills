@@ -59,7 +59,7 @@ import argdump
 parser = ...
 parser.prog = 'tool_name'  # based on the CLI command or entrypoint
 
-json_str = argdump.dumps(parser)
+json_str = argdump.dumps(parser, indent=4)
 ```
 
 ### Step 5: Write the output JSON file
