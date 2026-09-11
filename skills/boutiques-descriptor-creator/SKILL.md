@@ -6,6 +6,17 @@ license: MIT
 
 # Boutiques Descriptor Creator
 
+Two reference files are available:
+
+- `references/boutiques-schema.md` — prose field reference for schema-version 0.5. Read it for
+  field-level detail: `groups`, `output-files`, `container-image`, `error-codes`, and the
+  command-line template rules.
+- `references/descriptor.schema.json` — the authoritative JSON Schema. Consult it when the prose
+  reference is not specific enough, or to confirm a field's exact type.
+
+Load `references/boutiques-schema.md` before writing any `groups`, `output-files`, or
+`disables-inputs`/`requires-inputs` entry. Do not invent that syntax from memory.
+
 ## Instructions
 
 ### Step 1: Collect help text from the tool
@@ -15,8 +26,13 @@ license: MIT
 1. Start with the tool name provided by the user.
 2. Run `<tool-name> -h`.
 3. If output is incomplete or unavailable, run `<tool-name> --help`.
-4. Also try to read the tool's man page (if available) with `man -P cat <tool-name>` for non-interactive capture.
-5. Capture all output for parsing. Do not limit the amount of output captured. If help output is paged or verbose, redirect it to a file and parse from the saved text.
+4. If both are unhelpful, run the tool with no arguments at all (`<tool-name>`) — many tools print
+   usage in that case.
+5. Also try to read the tool's man page (if available) with `man -P cat <tool-name>` for non-interactive capture.
+6. Capture all output for parsing. Do not limit the amount of output captured. If help output is paged or verbose, redirect it to a file and parse from the saved text.
+
+If the tool requires a TTY to display help (output is empty, or contains "not a terminal"), stop
+and ask the user to paste the help text manually. Do not guess at the tool's interface.
 
 #### Containerized tools
 
@@ -46,17 +62,30 @@ After identifying the real entry command, rerun help using the entrypoint's unde
 
 If the image entrypoint already invokes the tool, omit `<tool-name>` and pass only `-h` or `--help`.
 
+### Step 2: Determine the tool version
+
+The version becomes the `tool-version` field and part of the output filename, so establish it
+before parsing parameters. Try, in order:
+
+1. `<tool-name> --version`
+2. `<tool-name> -version` (common in FSL and other older tools)
+3. A `version` subcommand, if the helptext mentions one: `<tool-name> version`
+4. For containerized tools, run the same commands inside the container, or read the image tag —
+   `nipreps/fmriprep:23.1.3` implies `23.1.3`.
+
+Record only the version string itself, not the surrounding banner text: from
+`fMRIPrep: fMRI PREProcessing workflows v23.1.3`, record `23.1.3`.
+
+If no version can be determined, use `"unknown"` and tell the user that the version could not be
+detected so they can correct it.
+
 ### Step 3: Extract tool information
 
 From help text or documentation, identify:
 - **name**: Tool name (for example, `fmriprep`)
 - **description**: Brief summary of tool behavior
-- **tool-version**: Version string
+- **tool-version**: Version string from Step 2
 - **command-line**: Command template with value-keys in brackets
-
-#### Helper commands for extracting tool version
-
-Run `<tool-name> --version` to collect `tool-version` if not already known. If this doesn't work, check if the helptext mentions a subcommand for version information, e.g. `<tool-name> version`.
 
 ### Step 4: Parse parameters
 
@@ -74,8 +103,6 @@ For each parameter, determine:
 ### Step 5: Build the descriptor
 
 Unless otherwise specified, name the descriptor file `<tool_name>-<tool_version>.json`.
-
-The full schema can be found at `references/descriptor.schema.json`. Consult it if more information is needed than what is provided here.
 
 In general, use this JSON structure:
 
@@ -121,6 +148,11 @@ Use these rules to determine the correct type:
 | Path/file input (`--input file.nii`) | String |
 | Other values (`--level minimal`) | String |
 
+Use `String` for paths by default, even though the schema also allows a `File` type. `bosh`
+validates `File` inputs for existence at invocation time, which fails for output paths and working
+directories that the tool itself creates. Use `File` only when the input must already exist on
+disk and you want that checked — and say so when you do.
+
 #### Optional parameters
 
 If an input is optional (in square brackets in usage, or explicitly marked optional), add `"optional": true`. Otherwise, omit the `optional` field.
@@ -133,11 +165,135 @@ If the flag takes a value, optionally add a `command-line-flag-separator` field 
 
 #### Value-choices handling
 
-When an input has limited valid values, add a `"value-choices": [<choice1>, <choice2>, ...]` field:
+When an input has limited valid values, add a `"value-choices": [<choice1>, <choice2>, ...]` field.
+Help text usually shows these in braces (`{register,header}`), after the metavar
+(`--level {minimal,resampling}`), or spelled out in the description ("one of: nii, nii.gz").
+
+Helptext:
+
+```
+--bold2t1w-init {register,header}
+                      Either "register" (the default) to initialize volumes at center or
+                      "header" to use the header information when coregistering.
+```
+
+Input:
+
+```json
+{
+    "id": "bold2t1w_init",
+    "name": "bold2t1w_init",
+    "type": "String",
+    "value-key": "[BOLD2T1W_INIT]",
+    "description": "Either \"register\" (the default) to initialize volumes at center or \"header\" to use the header information when coregistering.",
+    "optional": true,
+    "command-line-flag": "--bold2t1w-init",
+    "value-choices": [
+        "register",
+        "header"
+    ]
+}
+```
+
+`value-choices` may not be used with the `Flag` type.
 
 #### Multi-value option handling
 
-When a parameter accepts multiple values (for example, `--modalities T1w MNI`), use `list: true`:
+When a parameter accepts multiple values (for example, `--modalities T1w MNI`), use `list: true`.
+Help text signals this with a repeated metavar (`PARTICIPANT_LABEL [PARTICIPANT_LABEL ...]`), an
+ellipsis, or wording such as "a space delimited list".
+
+Helptext:
+
+```
+--participant-label PARTICIPANT_LABEL [PARTICIPANT_LABEL ...]
+                      A space delimited list of participant identifiers.
+```
+
+Input:
+
+```json
+{
+    "id": "participant_label",
+    "name": "participant_label",
+    "type": "String",
+    "value-key": "[PARTICIPANT_LABEL]",
+    "description": "A space delimited list of participant identifiers.",
+    "optional": true,
+    "list": true,
+    "command-line-flag": "--participant-label"
+}
+```
+
+If the values are joined by something other than a space (for example `--labels a,b,c`), add
+`"list-separator": ","`. An input of type `Flag` cannot be a list.
+
+#### Numeric constraints
+
+For `Number` inputs only, add:
+
+- `"integer": true` when the value must be a whole number (`--nprocs 4`, metavars such as `N`,
+  `NUM`, `INT`, `COUNT`)
+- `"minimum"` / `"maximum"` when the help text states an inclusive valid range
+
+```json
+{
+    "id": "n_procs",
+    "name": "n_procs",
+    "type": "Number",
+    "value-key": "[N_PROCS]",
+    "description": "Number of cores used to run in parallel. Defaults to the number of available CPUs minus one.",
+    "optional": true,
+    "command-line-flag": "--n_procs",
+    "integer": true,
+    "minimum": 1
+}
+```
+
+Do not add these fields to `String`, `File`, or `Flag` inputs — the schema rejects them.
+
+#### Output files
+
+If the tool writes files to paths the user supplies, add an `output-files` entry for each. Look for
+inputs whose flag, metavar, or description indicates output (`--output`, `--out`, `-o`,
+`OUTPUT_DIR`, "the output path for ...").
+
+```json
+"output-files": [
+    {
+        "id": "output_dir",
+        "name": "output_dir",
+        "description": "The output path for the outcomes of preprocessing and visual reports.",
+        "path-template": "[OUTPUT_DIR]"
+    }
+]
+```
+
+The `path-template` references the `value-key` of the input that names the path. Omit
+`output-files` entirely if the tool's outputs are not addressable this way. Read
+`references/boutiques-schema.md` for `conditional-path-template`,
+`path-template-stripped-extensions`, and `file-template`.
+
+#### Mutually exclusive and dependent inputs
+
+When the helptext says options cannot be combined ("use `-T` or `-I`, not both"), express that with
+a top-level `groups` array — the key is `groups`, not `input-groups`:
+
+```json
+"groups": [
+    {
+        "id": "mode_group",
+        "name": "Mode selection",
+        "description": "Mutually exclusive mode flags.",
+        "members": ["flag_t", "flag_i"],
+        "mutually-exclusive": true
+    }
+]
+```
+
+`groups` entries also support `one-is-required` and `all-or-none`. For dependencies between
+individual inputs rather than sets, use `disables-inputs` / `requires-inputs` on the input itself.
+Read `references/boutiques-schema.md` before writing either — do not guess the syntax.
 
 #### Examples
 
@@ -187,7 +343,11 @@ Other options:
     "description": "fMRI PREProcessing workflows",
     "tool-version": "23.1.3",
     "schema-version": "0.5",
-    "command-line": "get_descriptor.py [BIDS_DIR] [OUTPUT_DIR] [ANALYSIS_LEVEL] [SKIP_BIDS_VALIDATION] [PARTICIPANT_LABEL] [TASK_ID] [BOLD2T1W_INIT] [HELP] [VERSION] [VERBOSE_COUNT]",
+    "command-line": "fmriprep [BIDS_DIR] [OUTPUT_DIR] [ANALYSIS_LEVEL] [SKIP_BIDS_VALIDATION] [PARTICIPANT_LABEL] [TASK_ID] [BOLD2T1W_INIT] [HELP] [VERSION] [VERBOSE_COUNT]",
+    "container-image": {
+        "image": "nipreps/fmriprep:23.1.3",
+        "type": "docker"
+    },
     "inputs": [
         {
             "id": "bids_dir",
@@ -285,6 +445,14 @@ Other options:
                 "-vvv"
             ]
         }
+    ],
+    "output-files": [
+        {
+            "id": "output_directory",
+            "name": "output_directory",
+            "description": "The output path for the outcomes of preprocessing and visual reports",
+            "path-template": "[OUTPUT_DIR]"
+        }
     ]
 }
 ```
@@ -347,7 +515,7 @@ Options:
             "name": "recon_all_args",
             "type": "String",
             "value-key": "[RECON_ALL_ARGS]",
-            "description": "Additional flags for recon-all command line Please note that = is compulsory after --recon_all_args/-raa flag (this is not the case for other flags).",
+            "description": "Additional flags for recon-all command line Please note that = is compulsory after --recon_all_args/-raa flag (this is not the case for other flags). Defaults to -qcache.",
             "optional": true,
             "command-line-flag": "--recon_all_args",
             "command-line-flag-separator": "="
@@ -393,16 +561,18 @@ Options:
             "name": "n_procs",
             "type": "Number",
             "value-key": "[N_PROCS]",
-            "description": "(Number of available CPU minus one)",
+            "description": "Number of cores used to run in parallel. Defaults to the number of available CPUs minus one.",
             "optional": true,
-            "command-line-flag": "--n_procs"
+            "command-line-flag": "--n_procs",
+            "integer": true,
+            "minimum": 1
         },
         {
             "id": "caps_name",
             "name": "caps_name",
             "type": "String",
             "value-key": "[CAPS_NAME]",
-            "description": "(The name of the CAPS dataset that will be created by the pipeline. This is not the name of the folder itself, but the name in the metadata, which can be different if desired. If the CAPS folder already exists and already has a name, this will have no effect and the existing name will be kept",
+            "description": "The name of the CAPS dataset that will be created by the pipeline. This is not the name of the folder itself, but the name in the metadata, which can be different if desired. If the CAPS folder already exists and already has a name, this will have no effect and the existing name will be kept.",
             "optional": true,
             "command-line-flag": "--caps-name"
         },
@@ -412,6 +582,7 @@ Options:
             "type": "Flag",
             "value-key": "[HELP]",
             "description": "Show this message and exit.",
+            "optional": true,
             "command-line-flag": "--help"
         }
     ]
@@ -423,8 +594,23 @@ Options:
 
 DO NOT use `jq` to validate.
 
+Validation requires the `boutiques` package, which provides `bosh`:
+
+```bash
+pip install boutiques
+```
+
 Validate in this order:
 1. Make sure every argument/option in the command-line template is represented in the `inputs` section with a corresponding `value-key`.
-2. Run `./scripts/validate.sh <path/to/descriptor.json>`.
+2. Run `./scripts/validate.sh <path/to/descriptor.json>` from the skill directory.
 
 Successful validation should report that the descriptor is valid (`OK`).
+
+## Constraints
+
+- Never invent flags, options, or value-choices that are not present in the captured help text. If help is truncated or unavailable, report what was captured and ask the user how to proceed.
+- Every `value-key` in `command-line` must have exactly one matching input, and every input's `value-key` must appear in `command-line`. Check both directions.
+- Keep `id` values unique. If two flags would produce the same id, append `_2`.
+- If the target file already exists, warn the user before overwriting it.
+- Indent generated JSON with 4 spaces, matching the examples above.
+- For a tool with many subcommands, describe the one the user asked about and state that the others are not covered. One descriptor per command or subcommand.
