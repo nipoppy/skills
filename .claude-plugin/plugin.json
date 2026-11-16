@@ -1,0 +1,23 @@
+{
+  "name": "nipoppy-skills",
+  "description": "Skills for working with the Nipoppy framework for standardized and reproducible curation and processing of neuroimaging studies.",
+  "version": "0.1.0",
+  "author": { "name": "Nipoppy" },
+  "homepage": "https://nipoppy.readthedocs.io",
+  "repository": "https://github.com/nipoppy/skills",
+  "license": "MIT",
+  "keywords": [
+    "nipoppy",
+    "neuroimaging",
+    "boutiques",
+    "bids",
+    "dicom",
+    "pipeline",
+    "descriptor",
+    "reproducibility",
+    "standardization",
+    "curation",
+    "organization",
+    "processing"
+  ]
+}

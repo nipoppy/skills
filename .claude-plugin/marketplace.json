@@ -1,0 +1,16 @@
+{
+  "name": "nipoppy",
+  "description": "Nipoppy-related skills for LLM agents (experimental)",
+  "owner": {
+    "name": "Nipoppy",
+    "url": "https://github.com/nipoppy"
+  },
+  "plugins": [
+    {
+      "name": "nipoppy-skills",
+      "source": "./",
+      "description": "Skills for working with the Nipoppy framework for standardized and reproducible curation and processing of neuroimaging studies.",
+      "version": "0.1.0"
+    }
+  ]
+}
